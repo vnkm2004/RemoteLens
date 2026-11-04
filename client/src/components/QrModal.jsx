@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { getServerUrl } from '../utils/serverUrl';
+import { getServerUrl, getFrontendUrl } from '../utils/serverUrl';
 import {
   X,
   QrCode,
@@ -19,10 +19,8 @@ export function QrModal({ isOpen, onClose, onOpenScanner }) {
   const [copied, setCopied] = useState(false);
   const [qrCodeSrc, setQrCodeSrc] = useState(null);
 
-  // In native Android APK or browser, use networkInfo URL or fallback to known server URL
-  const baseOrigin = networkInfo?.url
-    ? networkInfo.url.split('?')[0]
-    : getServerUrl();
+  // In native Android APK or browser, use active origin or production remotelens.vnkm.in
+  const baseOrigin = getFrontendUrl();
 
   const pairUrl = user
     ? `${baseOrigin}?pair=${encodeURIComponent(user.username)}`

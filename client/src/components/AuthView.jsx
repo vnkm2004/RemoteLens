@@ -40,7 +40,7 @@ export function AuthView({ onOpenQr, onOpenInstall, onOpenScanner }) {
   const [editingDeviceName, setEditingDeviceName] = useState(deviceName);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showServerConfig, setShowServerConfig] = useState(false);
-  const [customServerIp, setCustomServerIp] = useState(serverUrl || 'https://172.30.250.210:5000');
+  const [customServerIp, setCustomServerIp] = useState(serverUrl || 'https://remotelensserver.vnkm.in');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -174,14 +174,14 @@ export function AuthView({ onOpenQr, onOpenInstall, onOpenScanner }) {
             }}
           >
             <label className="block text-[11px] font-semibold text-neutral-300">
-              Host PC / Server Address (e.g. https://172.30.250.210:5000):
+              Host / Cloud Server Address (e.g. https://remotelensserver.vnkm.in):
             </label>
             <div className="flex items-center gap-2">
               <input
                 type="text"
                 value={customServerIp}
                 onChange={(e) => setCustomServerIp(e.target.value)}
-                placeholder="https://172.30.250.210:5000"
+                placeholder="https://remotelensserver.vnkm.in"
                 className="flex-1 px-3 py-2 rounded-xl text-xs border font-mono focus:outline-none"
                 style={{
                   backgroundColor: isDark ? '#0a0a0a' : '#ffffff',

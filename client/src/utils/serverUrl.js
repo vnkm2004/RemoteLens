@@ -3,8 +3,10 @@ const ENV_SERVER_URL = typeof import.meta !== 'undefined' && import.meta.env?.VI
   ? import.meta.env.VITE_SERVER_URL.trim().replace(/\/+$/, '')
   : null;
 
-const DEFAULT_HOST_IP = '172.30.250.210:5000';
-const DEFAULT_SERVER_URL = ENV_SERVER_URL || `https://${DEFAULT_HOST_IP}`;
+export const PRODUCTION_SERVER_URL = 'https://remotelensserver.vnkm.in';
+export const PRODUCTION_FRONTEND_URL = 'https://remotelens.vnkm.in';
+
+const DEFAULT_SERVER_URL = ENV_SERVER_URL || PRODUCTION_SERVER_URL;
 
 export function isNativeApp() {
   if (typeof window === 'undefined') return false;
@@ -14,6 +16,13 @@ export function isNativeApp() {
     (window.location.hostname === 'localhost' && !window.location.port) ||
     window.location.hostname === 'localhost'
   );
+}
+
+export function getFrontendUrl() {
+  if (typeof window !== 'undefined' && window.location.origin && window.location.origin.startsWith('http') && !window.location.origin.includes('localhost')) {
+    return window.location.origin;
+  }
+  return PRODUCTION_FRONTEND_URL;
 }
 
 export function getServerUrl() {
@@ -30,17 +39,25 @@ export function getServerUrl() {
     return ENV_SERVER_URL;
   }
 
-  // 3. If hosted on a cloud static platform (Vercel, Netlify, GitHub Pages) without custom backend URL
-  const isCloudHost = window.location.hostname.includes('vercel.app') ||
-                      window.location.hostname.includes('netlify.app') ||
-                      window.location.hostname.includes('github.io');
-  if (isCloudHost) {
-    return DEFAULT_SERVER_URL;
+  // 3. If hosted on custom production domain or cloud platform
+  const hostname = window.location.hostname;
+  if (
+    hostname.includes('remotelens.vnkm.in') ||
+    hostname.includes('vnkm.in') ||
+    hostname.includes('vercel.app') ||
+    hostname.includes('netlify.app')
+  ) {
+    return PRODUCTION_SERVER_URL;
   }
 
-  // 4. In standard browser on local LAN (e.g. https://172.30.250.210:5000), use window origin
-  if (!isNativeApp()) {
-    const origin = window.location.origin;
+  // 4. In native Android APK, default to live cloud server so it works anywhere out of the box
+  if (isNativeApp()) {
+    return PRODUCTION_SERVER_URL;
+  }
+
+  // 5. In standard browser on local LAN (e.g. https://172.30.250.210:5000), use window origin
+  const origin = window.location.origin;
+  if (origin && !origin.includes('localhost') && origin.startsWith('http')) {
     // Always map port 5001 to canonical port 5000 for socket and API calls
     if (window.location.port === '5001') {
       return origin.replace(':5001', ':5000');

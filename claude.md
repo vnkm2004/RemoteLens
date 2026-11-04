@@ -350,6 +350,17 @@ In Android Studio:
   4. **Active Playback Triggers**: `RemoteViewfinder.jsx` now listens to `onloadedmetadata`, `oncanplay`, and track `onunmute` events to immediately invoke `video.play()`.
   5. **Expanded STUN Servers**: Added Google and Cloudflare STUN servers (`stun.cloudflare.com:3478`, `stun2.l.google.com:19302`) for resilient NAT traversal across different networks.
 
+### 18. Custom Production Domain Transition (`remotelens.vnkm.in` & `remotelensserver.vnkm.in`)
+- **Domain Mapping**:
+  - **Frontend Production URL**: `https://remotelens.vnkm.in` (Vercel Custom Domain)
+  - **Backend Production URL**: `https://remotelensserver.vnkm.in` (Railway Cloud Container)
+- **Centralized Domain Resolution (`serverUrl.js`)**:
+  - Automatically routes to `https://remotelensserver.vnkm.in` whenever loaded on `remotelens.vnkm.in`, `*.vnkm.in`, `*.vercel.app`, or inside the native Android APK.
+  - Generates frontend pairing links targeting `https://remotelens.vnkm.in` so second devices scanning pairing QR codes open the live frontend domain directly.
+- **TDZ ReferenceError Elimination (`LocalCameraHost.jsx`)**:
+  - Fixed variable declaration order where `targetSocketId` was referenced in `useEffect` dependency array before its `const` definition.
+
+
 
 
 

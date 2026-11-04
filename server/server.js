@@ -151,9 +151,14 @@ app.get('/api/info', async (req, res) => {
   const localIps = getLocalIpAddresses();
   const primaryIp = localIps[0] || 'localhost';
   const pairRoom = req.query.room || '';
+
+  // Detect cloud deployment vs local Wi-Fi
+  const isCloud = process.env.NODE_ENV === 'production' || process.env.PORT || process.env.RAILWAY_ENVIRONMENT || process.env.RENDER;
+  const frontendBase = isCloud ? 'https://remotelens.vnkm.in' : `https://${primaryIp}:${PORT}`;
+
   const url = pairRoom
-    ? `https://${primaryIp}:${PORT}?pair=${encodeURIComponent(pairRoom)}`
-    : `https://${primaryIp}:${PORT}`;
+    ? `${frontendBase}?pair=${encodeURIComponent(pairRoom)}`
+    : frontendBase;
   
   try {
     const qrDataUrl = await qrcode.toDataURL(url, { margin: 1, scale: 6 });
@@ -162,6 +167,8 @@ app.get('/api/info', async (req, res) => {
       allIps: localIps,
       port: PORT,
       url,
+      frontendUrl: frontendBase,
+      serverUrl: isCloud ? 'https://remotelensserver.vnkm.in' : `https://${primaryIp}:${PORT}`,
       qrDataUrl,
     });
   } catch (err) {

@@ -152,9 +152,19 @@ app.get('/api/info', async (req, res) => {
   const primaryIp = localIps[0] || 'localhost';
   const pairRoom = req.query.room || '';
 
-  // Detect cloud deployment vs local Wi-Fi
-  const isCloud = process.env.NODE_ENV === 'production' || process.env.PORT || process.env.RAILWAY_ENVIRONMENT || process.env.RENDER;
-  const frontendBase = isCloud ? 'https://remotelens.vnkm.in' : `https://${primaryIp}:${PORT}`;
+  // Detect cloud container deployment vs local Wi-Fi
+  const hostHeader = (req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase();
+  const isCloudOrDomain = Boolean(process.env.PORT) ||
+                          process.env.NODE_ENV === 'production' ||
+                          Boolean(process.env.RAILWAY_ENVIRONMENT) ||
+                          Boolean(process.env.RENDER) ||
+                          hostHeader.includes('vnkm.in') ||
+                          hostHeader.includes('railway') ||
+                          primaryIp.startsWith('10.') ||
+                          primaryIp.startsWith('172.');
+
+  const frontendBase = isCloudOrDomain ? 'https://remotelens.vnkm.in' : `https://${primaryIp}:${PORT}`;
+  const serverPublicBase = isCloudOrDomain ? 'https://remotelensserver.vnkm.in' : `https://${primaryIp}:${PORT}`;
 
   const url = pairRoom
     ? `${frontendBase}?pair=${encodeURIComponent(pairRoom)}`
@@ -168,7 +178,7 @@ app.get('/api/info', async (req, res) => {
       port: PORT,
       url,
       frontendUrl: frontendBase,
-      serverUrl: isCloud ? 'https://remotelensserver.vnkm.in' : `https://${primaryIp}:${PORT}`,
+      serverUrl: serverPublicBase,
       qrDataUrl,
     });
   } catch (err) {

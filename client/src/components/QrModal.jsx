@@ -40,9 +40,8 @@ export function QrModal({ isOpen, onClose, onOpenScanner }) {
       })
       .catch((err) => {
         console.log('Error fetching QR code from:', targetEndpoint, err);
-        setQrCodeSrc(networkInfo?.qrDataUrl);
       });
-  }, [isOpen, pairUrl, networkInfo]);
+  }, [isOpen, pairUrl]);
 
   if (!isOpen) return null;
 

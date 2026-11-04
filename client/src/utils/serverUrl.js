@@ -19,9 +19,14 @@ export function isNativeApp() {
 }
 
 export function getFrontendUrl() {
-  if (typeof window !== 'undefined' && window.location.origin && window.location.origin.startsWith('http') && !window.location.origin.includes('localhost')) {
-    return window.location.origin;
+  if (typeof window !== 'undefined' && window.location.origin && window.location.origin.startsWith('http')) {
+    const host = window.location.hostname;
+    // If running on user domain or vercel domain, use current origin
+    if (host.includes('remotelens.vnkm.in') || host.includes('vnkm.in') || host.includes('vercel.app')) {
+      return window.location.origin;
+    }
   }
+  // Everywhere else (APK, internal IPs, localhost), always return the public production frontend URL
   return PRODUCTION_FRONTEND_URL;
 }
 

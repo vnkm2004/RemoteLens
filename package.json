@@ -1,0 +1,31 @@
+{
+  "name": "remote-camera-sync",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Zero-degradation Remote Camera Sharing and Capture across devices over Wi-Fi / Hotspot with offline APK support",
+  "scripts": {
+    "dev": "node server/server.js",
+    "start": "node server/server.js",
+    "server": "node server/server.js",
+    "client": "npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "android:sync": "npm --prefix client run cap:sync",
+    "android:open": "cd client && npx cap open android"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "qrcode": "^1.5.4",
+    "selfsigned": "^2.4.1",
+    "socket.io": "^4.8.1"
+  },
+  "keywords": [
+    "webrtc",
+    "remote-camera",
+    "lossless-capture",
+    "imagecapture-api",
+    "offline-wifi"
+  ],
+  "author": "",
+  "license": "ISC"
+}

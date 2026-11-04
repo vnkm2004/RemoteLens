@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root, .theme-light {
+  --bg-primary: #ffffff;
+  --bg-surface: #ffffff;
+  --border-color: #e5e5e5;
+  --text-main: #000000;
+  --text-muted: #525252;
+}
+
+.theme-dark {
+  --bg-primary: #000000;
+  --bg-surface: #0a0a0a;
+  --border-color: #262626;
+  --text-main: #ffffff;
+  --text-muted: #a3a3a3;
+}
+
+html, body {
+  background-color: var(--bg-primary);
+  color: var(--text-main);
+  min-height: 100%;
+  margin: 0;
+  padding: 0;
+  -webkit-overflow-scrolling: touch;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 9999px;
+}
+
+/* Shutter flash animation */
+@keyframes camera-shutter {
+  0% { opacity: 0; }
+  30% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.animate-shutter-flash {
+  animation: camera-shutter 250ms ease-out forwards;
+}
+
+/* Pulse ring */
+@keyframes pulse-ring {
+  0% { transform: scale(0.96); opacity: 0.8; }
+  50% { transform: scale(1.04); opacity: 0.4; }
+  100% { transform: scale(0.96); opacity: 0.8; }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s infinite ease-in-out;
+}
+
+/* QR Code Scanner Laser Scan Animation */
+@keyframes laser-scan {
+  0% { transform: translateY(0); opacity: 0.8; }
+  50% { transform: translateY(220px); opacity: 1; }
+  100% { transform: translateY(0); opacity: 0.8; }
+}
+
+.animate-laser-scan {
+  animation: laser-scan 2s ease-in-out infinite;
+}

@@ -325,13 +325,18 @@ In Android Studio:
 
 ### 16. Vercel Cloud Build & Deployment Fix
 - **The Issue**:
-  - Vercel CLI cloned the repository root and ran `npm install` at the root, which omitted `client/node_modules/`.
-  - When Vercel subsequently executed `npm run build` (`npm --prefix client run build`), it failed with `sh: line 1: vite: command not found` (exit code 127).
+  - When importing `vnkm2004/RemoteLens` on Vercel with Root Directory set to `client` and Application Preset set to `Vite`:
+    - Previously, `client/vite.config.js` wrote its output to `../server/public`.
+    - Vercel's Vite preset expected the output in `client/dist`.
+    - Since `client/dist` did not exist, Vercel reported: `Error: No Output Directory named "dist" found`.
 - **The Solution**:
-  - **Workspaces & Root Dependencies (`package.json`)**: Configured `"workspaces": ["client"]` and mirrored build devDependencies (`vite`, `@vitejs/plugin-react`, `tailwindcss`, `autoprefixer`, `postcss`) in root `package.json` so build binaries are installed in any CI/CD environment.
-  - **Auto-Install Build Pipeline**: Updated the root build script to `"build": "npm --prefix client install && npm --prefix client run build"`.
-  - **Vercel Manifest Configuration (`vercel.json`)**: Added `vercel.json` defining `buildCommand: "npm --prefix client install && npm --prefix client run build"`, `outputDirectory: "server/public"`, and SPA fallback rewrites (`/(.*) -> /index.html`).
-  - **Cloud Host Server URL Resolver (`serverUrl.js`)**: Updated `getServerUrl()` so when running on cloud static hosts (Vercel, Netlify, GitHub Pages), it defaults to the local server or saved custom IP instead of attempting an invalid WebSocket connection to the serverless host.
+  - **Standard `dist` Output with Auto-Mirroring (`client/vite.config.js`)**:
+    - Configured Vite's `outDir` to standard `dist`.
+    - Implemented a build plugin `syncToServerPublic` that automatically copies `client/dist` assets into `server/public` on every build.
+    - Result: Vercel finds `dist` immediately when deployed with Root Directory = `client`, while the local Node.js server and native Android APK still get the static assets in `server/public`.
+  - **Client Vercel Config (`client/vercel.json`)**: Added SPA routing fallback (`/(.*) -> /index.html`) directly inside `client/`.
+  - **Cloud PaaS Edge SSL Support (`server/server.js`)**: Detects cloud hosting environments (`RENDER`, `RAILWAY_ENVIRONMENT`, etc.) to terminate SSL at the edge load balancer while maintaining self-signed HTTPS for local Wi-Fi.
+
 
 
 

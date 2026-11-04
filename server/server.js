@@ -85,9 +85,25 @@ function getCertificates() {
   return { key: pems.private, cert: pems.cert };
 }
 
-const certs = getCertificates();
+// Detect if running on cloud PaaS (Render, Railway, Heroku, Fly.io) where SSL is terminated at edge
+const isCloudPaaS = Boolean(
+  process.env.RENDER ||
+  process.env.RAILWAY_ENVIRONMENT ||
+  process.env.HEROKU ||
+  process.env.FLY_ALLOC_ID ||
+  (process.env.PORT && process.env.NODE_ENV === 'production' && !process.env.FORCE_LOCAL_HTTPS)
+);
+
 const PORT = process.env.PORT || 5000;
-const server = https.createServer(certs, app);
+let server;
+
+if (isCloudPaaS) {
+  console.log('[Server] Cloud PaaS environment detected: running with edge-terminated SSL (HTTP)');
+  server = http.createServer(app);
+} else {
+  const certs = getCertificates();
+  server = https.createServer(certs, app);
+}
 
 // Handle client aborted SSL handshakes without crashing
 server.on('clientError', (err, socket) => {
@@ -707,6 +723,15 @@ function startPort5001Redirect() {
 
 function startServer(portToTry) {
   server.listen(portToTry, '0.0.0.0', async () => {
+    if (isCloudPaaS) {
+      console.log('\n======================================================');
+      console.log('   REMOTE CAMERA SYNC SERVER (CLOUD PAAS DEPLOYED)   ');
+      console.log('======================================================');
+      console.log(`Server successfully listening on port ${portToTry}`);
+      console.log('======================================================\n');
+      return;
+    }
+
     const localIps = getLocalIpAddresses();
     const primaryIp = localIps[0] || 'localhost';
     const url = `https://${primaryIp}:${portToTry}`;

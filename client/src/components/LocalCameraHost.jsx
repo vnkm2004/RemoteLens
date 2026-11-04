@@ -20,6 +20,7 @@ import {
 export function LocalCameraHost({ onStop }) {
   const { socket, activeSession, deviceName } = useAuth();
   const { isDark } = useTheme();
+  const targetSocketId = activeSession?.peerSocketId;
 
   const {
     stream,
@@ -164,9 +165,6 @@ export function LocalCameraHost({ onStop }) {
       isPortrait: deviceRotation === 0 || deviceRotation === 180,
     });
   }, [deviceRotation, socket, targetSocketId]);
-
-  // Target Phone A socket id
-  const targetSocketId = activeSession?.peerSocketId;
 
   // WebRTC connection as Host
   const { dataChannel, connectionState } = useWebRTC({

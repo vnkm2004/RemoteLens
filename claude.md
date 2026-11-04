@@ -323,4 +323,15 @@ In Android Studio:
   - **GPU Hardware Plane Composition (`RemoteViewfinder.jsx`)**: Added `translateZ(0)` and `willChange: 'transform'` to `<video>` for hardware compositor delegation.
   - **Background Polling Sleep (`NearbyRooms.jsx`)**: Pauses Wi-Fi radar polling whenever the app or browser tab is hidden (`document.hidden`).
 
+### 16. Vercel Cloud Build & Deployment Fix
+- **The Issue**:
+  - Vercel CLI cloned the repository root and ran `npm install` at the root, which omitted `client/node_modules/`.
+  - When Vercel subsequently executed `npm run build` (`npm --prefix client run build`), it failed with `sh: line 1: vite: command not found` (exit code 127).
+- **The Solution**:
+  - **Workspaces & Root Dependencies (`package.json`)**: Configured `"workspaces": ["client"]` and mirrored build devDependencies (`vite`, `@vitejs/plugin-react`, `tailwindcss`, `autoprefixer`, `postcss`) in root `package.json` so build binaries are installed in any CI/CD environment.
+  - **Auto-Install Build Pipeline**: Updated the root build script to `"build": "npm --prefix client install && npm --prefix client run build"`.
+  - **Vercel Manifest Configuration (`vercel.json`)**: Added `vercel.json` defining `buildCommand: "npm --prefix client install && npm --prefix client run build"`, `outputDirectory: "server/public"`, and SPA fallback rewrites (`/(.*) -> /index.html`).
+  - **Cloud Host Server URL Resolver (`serverUrl.js`)**: Updated `getServerUrl()` so when running on cloud static hosts (Vercel, Netlify, GitHub Pages), it defaults to the local server or saved custom IP instead of attempting an invalid WebSocket connection to the serverless host.
+
+
 

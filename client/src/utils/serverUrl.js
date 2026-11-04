@@ -15,7 +15,21 @@ export function isNativeApp() {
 export function getServerUrl() {
   if (typeof window === 'undefined') return DEFAULT_SERVER_URL;
 
-  // In standard browser on LAN (e.g. https://172.30.250.210:5000), use origin
+  // 1. Check if user configured a custom server URL in localStorage
+  const saved = localStorage.getItem('remote_server_url');
+  if (saved && saved.trim()) {
+    return saved.trim().replace(/\/+$/, '');
+  }
+
+  // 2. If hosted on a cloud static platform (Vercel, Netlify, GitHub Pages) without custom backend URL
+  const isCloudHost = window.location.hostname.includes('vercel.app') ||
+                      window.location.hostname.includes('netlify.app') ||
+                      window.location.hostname.includes('github.io');
+  if (isCloudHost) {
+    return DEFAULT_SERVER_URL;
+  }
+
+  // 3. In standard browser on local LAN (e.g. https://172.30.250.210:5000), use window origin
   if (!isNativeApp()) {
     const origin = window.location.origin;
     // Always map port 5001 to canonical port 5000 for socket and API calls
@@ -23,12 +37,6 @@ export function getServerUrl() {
       return origin.replace(':5001', ':5000');
     }
     return origin;
-  }
-
-  // In native Android APK, use saved server URL or default LAN host
-  const saved = localStorage.getItem('remote_server_url');
-  if (saved && saved.trim()) {
-    return saved.trim().replace(/\/+$/, '');
   }
 
   return DEFAULT_SERVER_URL;

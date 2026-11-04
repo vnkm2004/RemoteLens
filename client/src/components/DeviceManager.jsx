@@ -211,7 +211,7 @@ export function DeviceManager({ onOpenQr, onOpenScanner, onOpenInstall, onStartL
             </div>
           </div>
 
-          {/* Quick Install APK / PWA Trigger (Hidden in APK) */}
+          {/* Quick Download APK Trigger (Hidden in APK) */}
           {!isNative && (
             <div className="flex items-center gap-2">
               <button
@@ -224,7 +224,7 @@ export function DeviceManager({ onOpenQr, onOpenScanner, onOpenInstall, onStartL
                 }}
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Install APK / PWA</span>
+                <span>Download APK</span>
               </button>
             </div>
           )}

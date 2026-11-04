@@ -74,7 +74,7 @@ export function Navbar({ onOpenQr, onOpenScanner, onOpenGallery, onOpenInstall, 
           {!isNative && (
             <button
               onClick={onOpenInstall}
-              title="Install App / Download APK"
+              title="Download Android APK"
               className="p-1.5 sm:p-2.5 rounded-xl border transition-all active:scale-95 flex items-center gap-1.5"
               style={{
                 backgroundColor: isDark ? '#0a0a0a' : '#ffffff',
@@ -83,7 +83,7 @@ export function Navbar({ onOpenQr, onOpenScanner, onOpenGallery, onOpenInstall, 
               }}
             >
               <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden md:inline text-xs font-bold">Install</span>
+              <span className="hidden md:inline text-xs font-bold">Download APK</span>
             </button>
           )}
 

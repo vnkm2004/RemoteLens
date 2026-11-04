@@ -2,13 +2,24 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { PhotoReceiver } from '../utils/imageTransfer';
 import { getServerUrl } from '../utils/serverUrl';
 
-// Offline-resilient WebRTC Configuration
+// Offline-resilient WebRTC Configuration with Public STUN and OpenRelay TURN
 const RTC_CONFIG = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
     { urls: 'stun:stun.cloudflare.com:3478' },
+    {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+      ],
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
   ],
   iceCandidatePoolSize: 2,
 };
@@ -227,6 +238,10 @@ export function useWebRTC({
           } catch (e) {
             console.error('[WebRTC] Ice restart error:', e);
           }
+        } else if (role === 'controller' && targetSocketIdRef.current) {
+          socket.emit('request_ice_restart', {
+            targetSocketId: targetSocketIdRef.current,
+          });
         }
       } else if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
         setIsReconnecting(false);
@@ -446,12 +461,33 @@ export function useWebRTC({
       }
     };
 
+    const handleRequestIceRestart = async () => {
+      if (role === 'host' && pcRef.current && targetSocketIdRef.current) {
+        console.log('[WebRTC] Controller requested ICE restart, triggering iceRestart...');
+        try {
+          if (pcRef.current.restartIce) {
+            pcRef.current.restartIce();
+          }
+          const offer = await pcRef.current.createOffer({ iceRestart: true });
+          offer.sdp = boostSdpQuality(offer.sdp);
+          await pcRef.current.setLocalDescription(offer);
+          socket.emit('webrtc_offer', {
+            targetSocketId: targetSocketIdRef.current,
+            sdp: offer,
+          });
+        } catch (e) {
+          console.warn('[WebRTC] Ice restart error on controller request:', e);
+        }
+      }
+    };
+
     socket.on('webrtc_offer', handleOffer);
     socket.on('webrtc_answer', handleAnswer);
     socket.on('webrtc_ice_candidate', handleCandidate);
     socket.on('image_chunk_relay', handleChunkRelay);
     socket.on('photo_ready_download', handlePhotoReadyDownload);
     socket.on('photo_direct_binary', handlePhotoDirectBinary);
+    socket.on('request_ice_restart', handleRequestIceRestart);
 
     return () => {
       socket.off('webrtc_offer', handleOffer);
@@ -460,6 +496,7 @@ export function useWebRTC({
       socket.off('image_chunk_relay', handleChunkRelay);
       socket.off('photo_ready_download', handlePhotoReadyDownload);
       socket.off('photo_direct_binary', handlePhotoDirectBinary);
+      socket.off('request_ice_restart', handleRequestIceRestart);
       closePeerConnection();
     };
   }, [

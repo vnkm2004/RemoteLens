@@ -235,12 +235,13 @@ export function LocalCameraHost({ onStop }) {
           // 2. Transmit raw Blob to Device A asynchronously in background
           // Camera is immediately freed to capture the next queued photo!
           const photoName = `IMG_${Date.now()}_${Math.random().toString(36).substring(2, 6)}.${captureResult.mimeType.includes('png') ? 'png' : 'jpg'}`;
+          const destSocketId = item.requesterSocketId || targetSocketId;
 
           sendLosslessPhoto({
             blob: captureResult.blob,
             dataChannel,
             socket,
-            targetSocketId,
+            targetSocketId: destSocketId,
             metadata: {
               width: captureResult.width,
               height: captureResult.height,
@@ -276,9 +277,13 @@ export function LocalCameraHost({ onStop }) {
     };
 
     // Trigger Photo Capture from Phone A
-    const handleRemoteCapture = ({ settings, captureId }) => {
-      console.log('[Host] Remote capture trigger received from Phone A:', captureId);
-      captureQueueRef.current.push({ settings, captureId });
+    const handleRemoteCapture = ({ settings, captureId, requesterSocketId }) => {
+      console.log('[Host] Remote capture trigger received from Phone A:', captureId, 'requester:', requesterSocketId);
+      captureQueueRef.current.push({
+        settings,
+        captureId,
+        requesterSocketId: requesterSocketId || targetSocketId,
+      });
       processQueue();
     };
 

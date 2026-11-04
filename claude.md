@@ -360,6 +360,22 @@ In Android Studio:
 - **TDZ ReferenceError Elimination (`LocalCameraHost.jsx`)**:
   - Fixed variable declaration order where `targetSocketId` was referenced in `useEffect` dependency array before its `const` definition.
 
+### 19. OpenRelay TURN Traversal for 5G Cellular Networks & Direct APK Serving
+- **5G Mobile Carrier Symmetric NAT Traversal**:
+  - **The Root Cause**: When Controller connects over mobile 5G cellular (Carrier-Grade NAT / CGNAT) and Host connects on local Wi-Fi, direct STUN UDP candidates (`typ srflx`) are dropped by carrier symmetric NAT firewalls. Without a TURN relay, `iceConnectionState` fails and the mobile viewfinder remains pitch black.
+  - **OpenRelay TURN Integration (`useWebRTC.js`)**: Added OpenRelay (Metered) TURN servers over UDP ports 80, 443, and TCP port 443 (`turn:openrelay.metered.ca:443?transport=tcp`). WebRTC allocates `typ relay` candidates, allowing media streams and SCTP DataChannels to traverse any 5G/LTE cellular network or restrictive firewall.
+  - **Cellular ICE Auto-Recovery Handshake**: Added `request_ice_restart` signaling so Controller automatically requests Host to trigger `pc.restartIce()` on network handovers.
+- **High-Res Rapid Capture & Photo Delivery Over Cellular/LAN**:
+  - **Capture ID & Room-Resilient Forwarding (`server.js`)**: Ensured `captureId` is preserved and forwarded in `remote_capture_trigger`. Added automatic room-based fallback routing so capture triggers reach the partner even if a socket briefly reconnected with a new socket ID.
+  - **Multi-Path Photo Notification (`server.js`)**: On `/api/photo/transfer`, `photo_ready_download` is delivered to `targetSocketId` and broadcast to the room, guaranteeing Controller never misses incoming photo notifications.
+  - **Safe Shutter Reset Guard**: Added 20-second defensive timeout in `RemoteViewfinder.jsx` to prevent the `+{pendingCaptures}` badge from getting stuck.
+- **Direct APK Serving & Removal of "Add to Home Screen"**:
+  - Completely removed PWA "Add to Home Screen" UI from `InstallModal.jsx`.
+  - Added compiled `RemoteLens.apk` (4.5 MB) directly to `client/public/RemoteLens.apk` and `server/public/RemoteLens.apk`.
+  - Updated `vercel.json` with direct rewrite `/api/download/apk -> /RemoteLens.apk` and standard APK MIME type headers (`application/vnd.android.package-archive`).
+  - Standardized UI labels across Navbar, Device Manager, and AuthView to "Download APK".
+
+
 
 
 

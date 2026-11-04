@@ -32,6 +32,16 @@ export function RemoteViewfinder({ onDisconnect, onOpenGallery, onPhotoSaved }) 
 
   const [shutterFlash, setShutterFlash] = useState(false);
   const [pendingCaptures, setPendingCaptures] = useState(0);
+
+  // Auto-reset stuck pending captures safeguard if network packet dropped
+  useEffect(() => {
+    if (pendingCaptures > 0) {
+      const timer = setTimeout(() => {
+        setPendingCaptures(0);
+      }, 20000);
+      return () => clearTimeout(timer);
+    }
+  }, [pendingCaptures]);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [currentFacing, setCurrentFacing] = useState(activeSession?.cameraFacing || 'environment');
   const [zoomLevel, setZoomLevel] = useState(1);

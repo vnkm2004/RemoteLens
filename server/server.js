@@ -266,16 +266,25 @@ app.post('/api/photo/transfer', (req, res) => {
 
     console.log(`[Photo Transfer] Received photo ${photoId} (${(totalLength / (1024 * 1024)).toFixed(2)} MB), notifying target ${targetSocketId}`);
 
-    // Notify Phone A immediately via Socket.io
+    const downloadPayload = {
+      photoId,
+      metadata: {
+        ...metadata,
+        id: photoId,
+        size: totalLength,
+      },
+    };
+
+    // 1. Notify Phone A immediately via direct socket
     if (targetSocketId) {
-      io.to(targetSocketId).emit('photo_ready_download', {
-        photoId,
-        metadata: {
-          ...metadata,
-          id: photoId,
-          size: totalLength,
-        },
-      });
+      io.to(targetSocketId).emit('photo_ready_download', downloadPayload);
+    }
+
+    // 2. Also notify the room so if targetSocketId briefly refreshed/reconnected, it still receives it!
+    const targetDev = activeSockets.get(targetSocketId);
+    const targetRoom = targetDev?.room || req.query.room;
+    if (targetRoom) {
+      io.to(targetRoom).emit('photo_ready_download', downloadPayload);
     }
 
     res.json({ success: true, photoId, size: totalLength });
@@ -300,14 +309,23 @@ app.get('/api/photo/transfer/:photoId', (req, res) => {
   res.send(photo.buffer);
 });
 
-// Endpoint to download the built Android APK file if present
-app.get('/api/download/apk', (req, res) => {
-  const apkPath = path.join(__dirname, '../client/android/app/build/outputs/apk/debug/app-debug.apk');
-  if (fs.existsSync(apkPath)) {
-    res.download(apkPath, 'RemoteLens-Pro.apk');
+// Direct APK download endpoint (serves standalone APK file directly)
+app.get(['/api/download/apk', '/RemoteLens.apk', '/public/RemoteLens.apk'], (req, res) => {
+  const candidates = [
+    path.join(__dirname, 'public/RemoteLens.apk'),
+    path.join(__dirname, '../client/public/RemoteLens.apk'),
+    path.join(__dirname, '../client/android/app/build/outputs/apk/debug/app-debug.apk'),
+  ];
+
+  const apkPath = candidates.find((p) => fs.existsSync(p));
+
+  if (apkPath) {
+    res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+    res.setHeader('Content-Disposition', 'attachment; filename="RemoteLens.apk"');
+    res.download(apkPath, 'RemoteLens.apk');
   } else {
     res.status(404).json({
-      error: 'APK not yet compiled. Use the "Add to Home Screen" PWA install button for instant 1-tap installation, or build APK in Android Studio via "npm run android:open".'
+      error: 'APK file not found on server.',
     });
   }
 });
@@ -590,12 +608,33 @@ io.on('connection', (socket) => {
   });
 
   // Remote Camera Controls (Phone A -> Phone B)
-  socket.on('remote_capture_trigger', ({ targetSocketId, settings }) => {
-    console.log(`[Remote Capture Triggered] from ${socket.id} to ${targetSocketId}`);
-    io.to(targetSocketId).emit('remote_capture_trigger', {
+  socket.on('remote_capture_trigger', (data) => {
+    const { targetSocketId, settings, captureId } = data || {};
+    console.log(`[Remote Capture Triggered] from ${socket.id} to ${targetSocketId}, captureId: ${captureId}`);
+
+    const payload = {
       requesterSocketId: socket.id,
       settings: settings || {},
-    });
+      captureId,
+    };
+
+    // 1. Direct delivery if target socket is active
+    if (targetSocketId && io.sockets.sockets.has(targetSocketId)) {
+      io.to(targetSocketId).emit('remote_capture_trigger', payload);
+      return;
+    }
+
+    // 2. Fallback: Find partner socket in the same room
+    const senderData = activeSockets.get(socket.id);
+    if (senderData && senderData.room) {
+      for (const [sId, dev] of activeSockets.entries()) {
+        if (sId !== socket.id && dev.room === senderData.room) {
+          console.log(`[Remote Capture] Routing via room ${senderData.room} to ${sId}`);
+          io.to(sId).emit('remote_capture_trigger', payload);
+          return;
+        }
+      }
+    }
   });
 
   socket.on('remote_switch_camera', ({ targetSocketId, facingMode }) => {
@@ -618,24 +657,11 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Relay physical phone orientation & rotation angle (Portrait 0°, Landscape 90°/270°, etc.)
-  socket.on('device_orientation_change', ({ targetSocketId, rotation, isPortrait }) => {
+  // Ice restart request across asymmetric cellular NAT
+  socket.on('request_ice_restart', ({ targetSocketId }) => {
     if (targetSocketId) {
-      io.to(targetSocketId).emit('device_orientation_change', {
-        rotation,
-        isPortrait,
-      });
-    }
-  });
-
-  // Direct high-speed lossless photo relay via WebSocket binary Buffer
-  socket.on('photo_direct_binary', ({ targetSocketId, photoId, metadata, buffer }) => {
-    console.log(`[Photo Direct Binary Relay] Forwarding ${photoId} (${buffer ? buffer.byteLength || buffer.length : 0} bytes) to ${targetSocketId}`);
-    if (targetSocketId) {
-      io.to(targetSocketId).emit('photo_direct_binary', {
-        photoId,
-        metadata,
-        buffer,
+      io.to(targetSocketId).emit('request_ice_restart', {
+        requesterSocketId: socket.id,
       });
     }
   });
@@ -653,12 +679,18 @@ io.on('connection', (socket) => {
   // Direct high-speed lossless photo relay via WebSocket binary Buffer
   socket.on('photo_direct_binary', ({ targetSocketId, photoId, metadata, buffer }) => {
     console.log(`[Photo Direct Binary Relay] Forwarding ${photoId} (${buffer ? buffer.byteLength || buffer.length : 0} bytes) to ${targetSocketId}`);
-    if (targetSocketId) {
-      io.to(targetSocketId).emit('photo_direct_binary', {
-        photoId,
-        metadata,
-        buffer,
-      });
+    const payload = {
+      photoId,
+      metadata,
+      buffer,
+    };
+    if (targetSocketId && io.sockets.sockets.has(targetSocketId)) {
+      io.to(targetSocketId).emit('photo_direct_binary', payload);
+    } else {
+      const senderData = activeSockets.get(socket.id);
+      if (senderData && senderData.room) {
+        io.to(senderData.room).emit('photo_direct_binary', payload);
+      }
     }
   });
 

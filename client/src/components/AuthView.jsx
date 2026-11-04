@@ -477,13 +477,13 @@ export function AuthView({ onOpenQr, onOpenInstall, onOpenScanner }) {
                   className="text-xs font-bold truncate"
                   style={{ color: isDark ? '#ffffff' : '#000000' }}
                 >
-                  Install App & APK
+                  Download Android APK
                 </h4>
                 <p
                   className="text-[10px] truncate"
                   style={{ color: isDark ? '#737373' : '#737373' }}
                 >
-                  Home screen PWA or Android APK
+                  Standalone native Android app
                 </p>
               </div>
             </div>
@@ -496,7 +496,7 @@ export function AuthView({ onOpenQr, onOpenInstall, onOpenScanner }) {
                 color: isDark ? '#000000' : '#ffffff',
               }}
             >
-              Install
+              Download
             </button>
           </div>
         )}

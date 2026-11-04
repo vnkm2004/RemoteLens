@@ -2,11 +2,30 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm --prefix client install && npm --prefix client run build",
   "outputDirectory": "server/public",
+  "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/api/download/apk",
+      "destination": "/RemoteLens.apk"
+    },
+    {
+      "source": "/((?!RemoteLens\\.apk).*)",
       "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/RemoteLens.apk",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/vnd.android.package-archive"
+        },
+        {
+          "key": "Content-Disposition",
+          "value": "attachment; filename=\"RemoteLens.apk\""
+        }
+      ]
     }
   ]
 }
-

@@ -49,7 +49,11 @@ export function NearbyRooms({ onJoined }) {
 
   useEffect(() => {
     fetchNearbyRooms();
-    const interval = setInterval(fetchNearbyRooms, 8000);
+    const interval = setInterval(() => {
+      // Pause network polling when tab/app is backgrounded to preserve power
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchNearbyRooms();
+    }, 12000);
     return () => clearInterval(interval);
   }, [fetchNearbyRooms]);
 

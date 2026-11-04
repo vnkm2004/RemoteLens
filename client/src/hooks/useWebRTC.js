@@ -12,8 +12,8 @@ const RTC_CONFIG = {
 };
 
 /**
- * Injects optimized high-clarity parameters into WebRTC SDP (4.5 Mbps 1080p Full HD)
- * Ensures zero compression blur while keeping mobile CPU cool and latency under 50ms.
+ * Injects optimized power-efficient parameters into WebRTC SDP (2.2 Mbps HD)
+ * Ensures sharp, artifact-free viewfinder while keeping mobile phones cool and preventing thermal throttling.
  */
 function boostSdpQuality(sdpString) {
   if (!sdpString) return sdpString;
@@ -21,7 +21,7 @@ function boostSdpQuality(sdpString) {
   const videoIndex = lines.findIndex((l) => l.startsWith('m=video'));
   if (videoIndex === -1) return sdpString;
 
-  // Insert b=AS:4500 (4.5 Mbps) and b=TIAS:4500000 right after m=video / c= line
+  // Insert b=AS:2200 (2.2 Mbps) and b=TIAS:2200000 right after m=video / c= line
   let insertPos = videoIndex + 1;
   let hasBLine = false;
   while (insertPos < lines.length && !lines[insertPos].startsWith('m=')) {
@@ -37,15 +37,15 @@ function boostSdpQuality(sdpString) {
   }
 
   if (!hasBLine) {
-    lines.splice(insertPos, 0, 'b=AS:4500', 'b=TIAS:4500000');
+    lines.splice(insertPos, 0, 'b=AS:2200', 'b=TIAS:2200000');
   }
 
-  // Set pristine 1080p Full HD video encoding floor & ceiling:
-  // min 1.2 Mbps, start 2.5 Mbps, max 4.5 Mbps (rock-solid, zero bufferbloat over Wi-Fi / hotspot)
+  // Set balanced HD video encoding floor & ceiling:
+  // min 600 kbps, start 1.4 Mbps, max 2.2 Mbps (super crisp, zero heating, cool battery)
   lines = lines.map((line) => {
     if (line.startsWith('a=fmtp:')) {
       if (!line.includes('x-google-min-bitrate')) {
-        return `${line};x-google-min-bitrate=1200;x-google-max-bitrate=4500;x-google-start-bitrate=2500`;
+        return `${line};x-google-min-bitrate=600;x-google-max-bitrate=2200;x-google-start-bitrate=1400`;
       }
     }
     return line;
@@ -55,11 +55,11 @@ function boostSdpQuality(sdpString) {
 }
 
 /**
- * Configure RTCRtpSender for lag-free, high-clarity 1080p transmission:
- * - 4.5 Mbps max bitrate (crystal clear 1080p, zero network congestion)
- * - 1.2 Mbps min bitrate floor
+ * Configure RTCRtpSender for cool, lag-free, battery-friendly transmission:
+ * - 2.2 Mbps max bitrate (razor sharp HD, zero heat buildup)
+ * - 600 kbps min bitrate floor
  * - 30 fps smooth video preview
- * - maintain-framerate for silky-smooth, stutter-free viewfinder
+ * - balanced degradation preference for natural thermal cooling
  */
 async function boostSenderQuality(sender) {
   if (!sender || sender.track?.kind !== 'video') return;
@@ -69,16 +69,16 @@ async function boostSenderQuality(sender) {
       params.encodings = [{}];
     }
     params.encodings.forEach((enc) => {
-      enc.maxBitrate = 4500000; // 4.5 Mbps Full HD
-      enc.minBitrate = 1200000;  // 1.2 Mbps floor
+      enc.maxBitrate = 2200000; // 2.2 Mbps HD (cool phone SoC)
+      enc.minBitrate = 600000;   // 600 kbps floor
       enc.maxFramerate = 30;
-      enc.scaleResolutionDownBy = 1.0; // Strictly NO downscaling
+      enc.scaleResolutionDownBy = 1.0;
       enc.networkPriority = 'high';
       enc.priority = 'high';
     });
-    encodingsDegradation: params.degradationPreference = 'maintain-framerate'; // Never drop frames or lag
+    params.degradationPreference = 'balanced'; // Balances CPU/GPU load to avoid heating
     await sender.setParameters(params);
-    console.log('[WebRTC] High-efficiency 1080p sender parameters applied (4.5 Mbps, 30fps, lag-free)');
+    console.log('[WebRTC] Power-optimized sender parameters applied (2.2 Mbps, 30fps, cool running)');
   } catch (err) {
     console.warn('[WebRTC] Note on sender parameters:', err);
   }

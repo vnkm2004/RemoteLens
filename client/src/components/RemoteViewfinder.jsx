@@ -239,8 +239,9 @@ export function RemoteViewfinder({ onDisconnect, onOpenGallery, onPhotoSaved }) 
           muted
           style={{
             imageRendering: '-webkit-optimize-contrast',
-            transform: `rotate(${remoteOrientation.rotation}deg) ${currentFacing === 'user' ? 'scaleX(-1)' : ''}`,
+            transform: `rotate(${remoteOrientation.rotation}deg) ${currentFacing === 'user' ? 'scaleX(-1)' : ''} translateZ(0)`,
             transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            willChange: 'transform',
           }}
           className={`w-full h-full ${
             videoFitMode === 'contain' ? 'object-contain' : 'object-cover'

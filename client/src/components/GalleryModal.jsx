@@ -38,6 +38,31 @@ export function GalleryModal({ isOpen, onClose, onCountChange }) {
     }
   };
 
+  // Push state when inspecting a photo so Android back button closes inspector first
+  const handleOpenPhoto = (photo) => {
+    window.history.pushState({ modal: 'photo_inspector' }, '');
+    setSelectedPhoto(photo);
+  };
+
+  const handleClosePhoto = () => {
+    if (window.history.state?.modal === 'photo_inspector') {
+      window.history.back();
+    } else {
+      setSelectedPhoto(null);
+    }
+  };
+
+  // Close inspector on popstate (back button) without closing the gallery modal
+  useEffect(() => {
+    const handlePop = (e) => {
+      if (selectedPhoto) {
+        setSelectedPhoto(null);
+      }
+    };
+    window.addEventListener('popstate', handlePop);
+    return () => window.removeEventListener('popstate', handlePop);
+  }, [selectedPhoto]);
+
   useEffect(() => {
     if (isOpen) {
       loadPhotos();
@@ -166,7 +191,7 @@ export function GalleryModal({ isOpen, onClose, onCountChange }) {
               {photos.map((photo) => (
                 <div
                   key={photo.id}
-                  onClick={() => setSelectedPhoto(photo)}
+                  onClick={() => handleOpenPhoto(photo)}
                   className="group relative aspect-square rounded-2xl overflow-hidden border cursor-pointer transition-all shadow-sm"
                   style={{
                     backgroundColor: isDark ? '#141414' : '#f5f5f5',
@@ -248,7 +273,7 @@ export function GalleryModal({ isOpen, onClose, onCountChange }) {
                   <Trash2 className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => setSelectedPhoto(null)}
+                  onClick={handleClosePhoto}
                   title="Close Preview"
                   className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white hover:bg-neutral-800 active:scale-95 transition-transform"
                 >

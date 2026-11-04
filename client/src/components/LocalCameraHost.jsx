@@ -52,27 +52,54 @@ export function LocalCameraHost({ onStop }) {
   const isProcessingQueueRef = useRef(false);
   const deviceRotationRef = useRef(0);
 
-  // Background audio keepalive to prevent mobile OS from freezing WebRTC when leaving app
+  // Power-Optimized Background Audio Keepalive (Only activates if phone is backgrounded/locked)
+  // Keeps the mobile OS from freezing WebRTC during app-switching, but stays 100% OFF during foreground use
+  // to prevent phone SoC heating and battery drain!
   useEffect(() => {
     let audioCtx = null;
     let oscillator = null;
-    try {
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      oscillator = audioCtx.createOscillator();
-      const gainNode = audioCtx.createGain();
-      gainNode.gain.value = 0.00001; // Inaudible silent keepalive
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-      oscillator.start();
-    } catch (e) {
-      console.log('Audio keepalive:', e);
-    }
 
-    return () => {
+    const startKeepalive = () => {
+      if (audioCtx) return;
       try {
-        if (oscillator) oscillator.stop();
-        if (audioCtx) audioCtx.close();
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0.00001; // Silent
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.start();
+        console.log('[Power] Background audio keepalive engaged');
       } catch (e) {}
+    };
+
+    const stopKeepalive = () => {
+      try {
+        if (oscillator) {
+          oscillator.stop();
+          oscillator.disconnect();
+          oscillator = null;
+        }
+        if (audioCtx) {
+          audioCtx.close();
+          audioCtx = null;
+        }
+        console.log('[Power] Foreground active: audio hardware released to keep phone cool');
+      } catch (e) {}
+    };
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        startKeepalive();
+      } else {
+        stopKeepalive();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      stopKeepalive();
     };
   }, []);
 
@@ -90,8 +117,13 @@ export function LocalCameraHost({ onStop }) {
       setDeviceRotation(angle);
     };
 
-    // Accelerometer / Gravity fallback (detects physical phone rotation even if screen auto-rotate is locked!)
+    // Accelerometer / Gravity fallback - Throttled to 350ms to prevent CPU heating (60Hz -> 3Hz)
+    let lastMotionCheck = 0;
     const handleMotion = (event) => {
+      const now = Date.now();
+      if (now - lastMotionCheck < 350) return;
+      lastMotionCheck = now;
+
       const acc = event.accelerationIncludingGravity;
       if (!acc) return;
       const x = acc.x || 0;

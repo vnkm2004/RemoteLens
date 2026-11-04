@@ -607,6 +607,28 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Relay physical phone orientation & rotation angle (Portrait 0°, Landscape 90°/270°, etc.)
+  socket.on('device_orientation_change', ({ targetSocketId, rotation, isPortrait }) => {
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('device_orientation_change', {
+        rotation,
+        isPortrait,
+      });
+    }
+  });
+
+  // Direct high-speed lossless photo relay via WebSocket binary Buffer
+  socket.on('photo_direct_binary', ({ targetSocketId, photoId, metadata, buffer }) => {
+    console.log(`[Photo Direct Binary Relay] Forwarding ${photoId} (${buffer ? buffer.byteLength || buffer.length : 0} bytes) to ${targetSocketId}`);
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('photo_direct_binary', {
+        photoId,
+        metadata,
+        buffer,
+      });
+    }
+  });
+
   // End camera session (User explicitly clicks Disconnect / Stop Camera)
   socket.on('end_camera_session', ({ targetSocketId }) => {
     console.log(`[End Session Explicitly Requested] by ${socket.id}`);

@@ -47,6 +47,11 @@ export function LocalCameraHost({ onStop }) {
   const [transferStatus, setTransferStatus] = useState(null); // { sentBytes, totalSize, percent }
   const [lastCapturedInfo, setLastCapturedInfo] = useState(null);
 
+  // Capture queue for rapid burst shooting (N continuous photos)
+  const captureQueueRef = useRef([]);
+  const isProcessingQueueRef = useRef(false);
+  const deviceRotationRef = useRef(0);
+
   // Background audio keepalive to prevent mobile OS from freezing WebRTC when leaving app
   useEffect(() => {
     let audioCtx = null;
@@ -161,59 +166,90 @@ export function LocalCameraHost({ onStop }) {
     }
   }, [stream]);
 
+  // Sync deviceRotation to ref
+  useEffect(() => {
+    deviceRotationRef.current = deviceRotation;
+  }, [deviceRotation]);
+
   // Listen for remote triggers from Phone A via socket
   useEffect(() => {
     if (!socket) return;
 
-    // Trigger Photo Capture from Phone A
-    const handleRemoteCapture = async ({ settings }) => {
-      console.log('[Host] Remote capture command received from Phone A');
-      setShutterFlash(true);
-      setTimeout(() => setShutterFlash(false), 300);
+    // Process queued capture requests sequentially for rapid burst shooting
+    const processQueue = async () => {
+      if (isProcessingQueueRef.current) return;
+      isProcessingQueueRef.current = true;
 
-      try {
-        setTransferStatus({ percent: 0, text: 'Capturing native sensor photo...' });
+      while (captureQueueRef.current.length > 0) {
+        const item = captureQueueRef.current.shift();
+        const currentRot = deviceRotationRef.current;
+        console.log(`[Host] Processing queued capture. Remaining in queue: ${captureQueueRef.current.length}`);
 
-        // 1. Capture raw uncompressed photo directly from camera hardware (oriented to match phone tilt, zero flash)
-        const captureResult = await takeNativePhoto(deviceRotation);
-        console.log('[Host] Native photo captured:', captureResult);
+        setShutterFlash(true);
+        setTimeout(() => setShutterFlash(false), 120);
 
-        setLastCapturedInfo({
-          width: captureResult.width,
-          height: captureResult.height,
-          size: captureResult.blob.size,
-          method: captureResult.method,
-        });
+        try {
+          setTransferStatus({ percent: 0, text: 'Capturing native sensor photo...' });
 
-        // 2. Transmit raw Blob to Device A via high-speed LAN / WebRTC
-        setTransferStatus({ percent: 5, text: 'Sending raw photo to Device A...' });
+          // 1. Capture raw uncompressed photo directly from camera hardware (oriented to match phone tilt, zero flash)
+          const captureResult = await takeNativePhoto(currentRot);
+          console.log('[Host] Native photo captured:', captureResult);
 
-        await sendLosslessPhoto({
-          blob: captureResult.blob,
-          dataChannel,
-          socket,
-          targetSocketId,
-          metadata: {
+          setLastCapturedInfo({
             width: captureResult.width,
             height: captureResult.height,
-            sourceDevice: deviceName,
-            name: `IMG_${Date.now()}.${captureResult.mimeType.includes('png') ? 'png' : 'jpg'}`,
-          },
-          onProgress: (p) => {
-            setTransferStatus({
-              percent: p.percent,
-              text: `Transmitting lossless image: ${p.percent}% (${(p.sentBytes / (1024 * 1024)).toFixed(1)} MB / ${(p.totalSize / (1024 * 1024)).toFixed(1)} MB)`,
-            });
-          },
-        });
+            size: captureResult.blob.size,
+            method: captureResult.method,
+          });
 
-        setTransferStatus({ percent: 100, text: 'Lossless transfer complete!' });
-        setTimeout(() => setTransferStatus(null), 3000);
-      } catch (err) {
-        console.error('[Host] Capture / transfer failed:', err);
-        setTransferStatus({ percent: 0, text: `Capture status: ${err.message}` });
-        setTimeout(() => setTransferStatus(null), 4000);
+          // 2. Transmit raw Blob to Device A asynchronously in background
+          // Camera is immediately freed to capture the next queued photo!
+          const photoName = `IMG_${Date.now()}_${Math.random().toString(36).substring(2, 6)}.${captureResult.mimeType.includes('png') ? 'png' : 'jpg'}`;
+
+          sendLosslessPhoto({
+            blob: captureResult.blob,
+            dataChannel,
+            socket,
+            targetSocketId,
+            metadata: {
+              width: captureResult.width,
+              height: captureResult.height,
+              sourceDevice: deviceName,
+              name: photoName,
+              captureId: item.captureId,
+            },
+            onProgress: (p) => {
+              setTransferStatus({
+                percent: p.percent,
+                text: `Transmitting lossless photo: ${p.percent}% (${(p.sentBytes / (1024 * 1024)).toFixed(1)} MB / ${(p.totalSize / (1024 * 1024)).toFixed(1)} MB)`,
+              });
+            },
+          }).then(() => {
+            setTransferStatus({ percent: 100, text: 'Lossless transfer complete!' });
+            setTimeout(() => setTransferStatus(null), 2500);
+          }).catch((err) => {
+            console.error('[Host] Background photo transfer error:', err);
+          });
+
+          // Brief 120ms gap between consecutive sensor shots to let exposure adjust
+          if (captureQueueRef.current.length > 0) {
+            await new Promise((r) => setTimeout(r, 120));
+          }
+        } catch (err) {
+          console.error('[Host] Capture failed:', err);
+          setTransferStatus({ percent: 0, text: `Capture failed: ${err.message}` });
+          setTimeout(() => setTransferStatus(null), 3000);
+        }
       }
+
+      isProcessingQueueRef.current = false;
+    };
+
+    // Trigger Photo Capture from Phone A
+    const handleRemoteCapture = ({ settings, captureId }) => {
+      console.log('[Host] Remote capture trigger received from Phone A:', captureId);
+      captureQueueRef.current.push({ settings, captureId });
+      processQueue();
     };
 
     // Remote camera switch

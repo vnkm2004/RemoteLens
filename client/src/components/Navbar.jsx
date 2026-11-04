@@ -26,7 +26,8 @@ export function Navbar({ onOpenQr, onOpenScanner, onOpenGallery, onOpenInstall, 
       style={{
         backgroundColor: isDark ? 'rgba(0, 0, 0, 0.95)' : 'rgba(255, 255, 255, 0.95)',
         borderColor: isDark ? '#262626' : '#e5e5e5',
-        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 6px)',
+        paddingTop: 'max(env(safe-area-inset-top, 0px), 10px)',
+        paddingBottom: '2px',
       }}
     >
       <div className="max-w-6xl mx-auto px-2.5 sm:px-4 h-13 sm:h-16 flex items-center justify-between">

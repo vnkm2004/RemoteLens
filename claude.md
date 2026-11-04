@@ -288,3 +288,21 @@ In Android Studio:
   - Added `return next()` to `app.get('*')` wildcard handler in `server.js` when `req.path.startsWith('/api')`, preventing `/api/rooms/nearby` from hanging indefinitely.
 - **Git & GitHub Repository Setup**:
   - Initialized Git repository, added clean `.gitignore`, created `README.md`, and configured remote `https://github.com/vnkm2004/RemoteLens.git`.
+
+### 14. Continuous Rapid Burst Capture, Safe Notch Clearance & Auto-Save
+- **Continuous Rapid / Burst Shooting (N Images in Succession)**:
+  - **Eliminated Shutter Locking**: Removed `disabled={isCapturing}` and early returns on Controller (`RemoteViewfinder.jsx`). The shutter button is always live, responsive, and clickable.
+  - **Asynchronous Host Queue**: Implemented a FIFO queue (`captureQueueRef`) and sequential hardware sensor worker in `LocalCameraHost.jsx`. Grabbing each raw sensor frame takes only ~150-180ms, after which the camera is immediately released to snap the next queued shot while the previous image uploads over LAN / WebSocket asynchronously in the background.
+  - **Zero Quality Loss**: Every single burst photograph maintains full 100% native hardware sensor resolution (e.g. 2592×1944 / 3.77 MB) with native multi-frame de-noising and zero strobe flash.
+  - **Visual In-Flight Counter**: Added energetic `+{pendingCaptures}` badge on the shutter button so users can see how many shots are in progress.
+- **Intrusive Modal Elimination**:
+  - Completely removed the auto-popup preview modal (`setPreviewModalPhoto`) on photo capture. The user remains 100% immersed in the live camera viewfinder.
+  - Incoming photos update the bottom-left thumbnail and trigger a sleek, auto-dismissing floating toast (`✓ Photo Saved to Gallery • 3.77 MB`) without interrupting camera operation.
+- **Safe-Area Notch / Punch-Hole Offset**:
+  - **Top Floating Header**: Adjusted `style={{ top: 'max(env(safe-area-inset-top, 0px) + 12px, 26px)' }}` so partner badge, Fit/Fill button, torch, zoom, and disconnect buttons never collide with mobile notches, punch-hole cameras, or the system status bar.
+  - **Gallery & Inspector Modals**: Added `style={{ paddingTop: 'max(env(safe-area-inset-top, 0px) + 20px, 34px)' }}` to `GalleryModal.jsx` and the photo inspector, lowering the Download and Cancel [X] buttons safely into an unobstructed, thumb-friendly position.
+  - **Navbar**: Increased safe-area top offset to `max(env(safe-area-inset-top, 0px), 10px)` for comfortable mobile header clearance.
+- **Reliable Local Storage & Gallery Auto-Save**:
+  - Hardened `savePhotoLocally` in `storage.js` with automatic ID generation, timestamp indexing, and an `ArrayBuffer` fallback for mobile browsers that restrict direct `Blob` storage in IndexedDB.
+  - Enhanced `downloadBlob` with synthetic mouse click events and added `shareOrSavePhoto` using `navigator.share` for 1-tap saving to native Camera Roll on mobile devices.
+

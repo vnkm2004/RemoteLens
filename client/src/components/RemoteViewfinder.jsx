@@ -31,7 +31,7 @@ export function RemoteViewfinder({ onDisconnect, onOpenGallery, onPhotoSaved }) 
   const videoElementRef = useRef(null);
 
   const [shutterFlash, setShutterFlash] = useState(false);
-  const [isCapturing, setIsCapturing] = useState(false);
+  const [pendingCaptures, setPendingCaptures] = useState(0);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [currentFacing, setCurrentFacing] = useState(activeSession?.cameraFacing || 'environment');
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -65,17 +65,17 @@ export function RemoteViewfinder({ onDisconnect, onOpenGallery, onPhotoSaved }) 
     };
   }, [socket]);
 
-  // Handle incoming lossless photo on Phone A
+  // Handle incoming lossless photo on Device A
   const handlePhotoReceived = async (photo) => {
     console.log('[Controller] Lossless raw photo received:', photo);
-    setIsCapturing(false);
+    setPendingCaptures((prev) => Math.max(0, prev - 1));
     setShutterFlash(false);
 
     try {
-      // 1. Save to Phone A IndexedDB
+      // 1. Save to Device A IndexedDB
       await savePhotoLocally(photo);
 
-      // 2. Automatically trigger local storage file download on Phone A
+      // 2. Automatically trigger local storage file download on Device A
       downloadBlob(photo.blob, photo.name);
 
       const objectUrl = URL.createObjectURL(photo.blob);
@@ -85,19 +85,20 @@ export function RemoteViewfinder({ onDisconnect, onOpenGallery, onPhotoSaved }) 
       };
 
       setLastPhoto(photoDetails);
-      setPreviewModalPhoto(photoDetails);
+      // NOTE: Do NOT call setPreviewModalPhoto - user stays in live viewfinder for continuous shooting!
       if (onPhotoSaved) onPhotoSaved(photo);
 
       setSuccessToast({
-        title: 'Lossless Sensor Photo Saved!',
+        title: 'Photo Saved to Gallery',
         subtitle: `${photo.width}×${photo.height} • ${(photo.size / (1024 * 1024)).toFixed(2)} MB (100% Sensor Quality)`,
+        photo: photoDetails,
       });
 
       if ('vibrate' in navigator) {
         navigator.vibrate([40, 60, 40]);
       }
 
-      setTimeout(() => setSuccessToast(null), 5000);
+      setTimeout(() => setSuccessToast(null), 3500);
     } catch (err) {
       console.error('[Controller] Failed to save photo locally:', err);
     }
@@ -150,31 +151,32 @@ export function RemoteViewfinder({ onDisconnect, onOpenGallery, onPhotoSaved }) 
     } catch (e) {}
   };
 
-  // Click shutter to capture full-resolution photo on Phone B
+  // Click shutter to capture full-resolution photo on Device B (Rapid continuous burst clicks!)
   const triggerShutter = useCallback(() => {
-    if (isCapturing || !socket || !targetSocketId) return;
+    if (!socket || !targetSocketId) return;
 
-    setIsCapturing(true);
-    setShutterFlash(true);
+    // Instant audio click + fast 70ms visual flash
     playShutterSound();
-    setTimeout(() => setShutterFlash(false), 250);
+    setShutterFlash(true);
+    setTimeout(() => setShutterFlash(false), 70);
 
     if ('vibrate' in navigator) {
-      navigator.vibrate(50);
+      navigator.vibrate(40);
     }
 
-    console.log('[Controller] Triggering native sensor capture on:', targetSocketId);
+    setPendingCaptures((prev) => prev + 1);
+
+    const captureId = `cap_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    console.log('[Controller] Triggering native sensor capture on:', targetSocketId, captureId);
+
     socket.emit('remote_capture_trigger', {
       targetSocketId,
+      captureId,
       settings: {
         desiredQuality: 1.0,
       },
     });
-
-    setTimeout(() => {
-      setIsCapturing(false);
-    }, 15000);
-  }, [isCapturing, socket, targetSocketId]);
+  }, [socket, targetSocketId]);
 
   // Keyboard shortcut: Spacebar or Enter to capture photo on Desktop PC!
   useEffect(() => {
@@ -269,8 +271,13 @@ export function RemoteViewfinder({ onDisconnect, onOpenGallery, onPhotoSaved }) 
         </div>
       </div>
 
-      {/* TOP FLOATING HEADER CONTROLS (Always visible HUD - Compact & Overfitting-Safe on Mobile) */}
-      <div className="absolute top-2.5 inset-x-2 sm:top-4 sm:inset-x-4 flex items-center justify-between pointer-events-auto z-30 gap-1.5 sm:gap-2">
+      {/* TOP FLOATING HEADER CONTROLS (Always visible HUD - Lowered safely below phone notch/camera cutout) */}
+      <div
+        className="absolute inset-x-2.5 sm:inset-x-4 flex items-center justify-between pointer-events-auto z-30 gap-1.5 sm:gap-2"
+        style={{
+          top: 'max(env(safe-area-inset-top, 0px) + 12px, 24px)',
+        }}
+      >
         {/* Left: Partner Device Info */}
         <div className="flex items-center gap-1 sm:gap-2 min-w-0 shrink">
           <div className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full bg-black/85 backdrop-blur-md border border-neutral-700 text-[11px] sm:text-xs text-white max-w-[34vw] sm:max-w-none truncate shadow-lg">
@@ -348,9 +355,14 @@ export function RemoteViewfinder({ onDisconnect, onOpenGallery, onPhotoSaved }) 
         </div>
       </div>
 
-      {/* Transfer Progress Bar Overlay */}
+      {/* Transfer Progress Bar Overlay (Lowered safely below top header) */}
       {transferProgress && (
-        <div className="absolute top-16 inset-x-3 sm:inset-x-8 max-w-lg mx-auto z-40">
+        <div
+          className="absolute inset-x-3 sm:inset-x-8 max-w-lg mx-auto z-40"
+          style={{
+            top: 'max(env(safe-area-inset-top, 0px) + 72px, 84px)',
+          }}
+        >
           <div className="p-3 sm:p-3.5 rounded-2xl bg-black/90 backdrop-blur-md border border-neutral-700 text-white shadow-2xl space-y-2">
             <div className="flex items-center justify-between text-xs font-semibold gap-2">
               <span className="flex items-center gap-2 text-white truncate">
@@ -372,23 +384,47 @@ export function RemoteViewfinder({ onDisconnect, onOpenGallery, onPhotoSaved }) 
         </div>
       )}
 
-      {/* Success Toast */}
+      {/* Success Toast (Non-intrusive notification pill, auto-fades without blocking live camera) */}
       {successToast && (
-        <div className="absolute top-16 inset-x-3 sm:inset-x-8 max-w-lg mx-auto z-40 animate-fade-in">
-          <div className="p-3 rounded-2xl bg-black/90 backdrop-blur-md border border-white text-white shadow-xl flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 truncate">
-              <CheckCircle className="w-5 h-5 text-white shrink-0" />
-              <div className="truncate">
-                <h5 className="text-xs font-bold truncate">{successToast.title}</h5>
-                <p className="text-[11px] text-neutral-300 font-mono">{successToast.subtitle}</p>
+        <div
+          className="absolute inset-x-3 sm:inset-x-8 max-w-md mx-auto z-40 animate-fade-in pointer-events-auto"
+          style={{
+            top: 'max(env(safe-area-inset-top, 0px) + 72px, 84px)',
+          }}
+        >
+          <div className="p-2.5 sm:p-3 rounded-2xl bg-black/90 backdrop-blur-md border border-neutral-700 text-white shadow-xl flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              {successToast.photo?.url ? (
+                <img
+                  src={successToast.photo.url}
+                  alt="Saved"
+                  className="w-9 h-9 rounded-lg object-cover border border-white/60 shrink-0"
+                />
+              ) : (
+                <CheckCircle className="w-5 h-5 text-white shrink-0" />
+              )}
+              <div className="min-w-0">
+                <h5 className="text-xs font-bold truncate flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-white shrink-0" />
+                  <span>{successToast.title}</span>
+                </h5>
+                <p className="text-[10px] text-neutral-300 font-mono truncate">{successToast.subtitle}</p>
               </div>
             </div>
-            <button
-              onClick={onOpenGallery}
-              className="px-3 py-1.5 rounded-xl bg-white text-[11px] font-bold text-black hover:bg-neutral-200 transition-colors shrink-0"
-            >
-              View
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={onOpenGallery}
+                className="px-2.5 py-1 rounded-xl bg-white text-[11px] font-bold text-black hover:bg-neutral-200 transition-colors"
+              >
+                Gallery
+              </button>
+              <button
+                onClick={() => setSuccessToast(null)}
+                className="p-1 rounded-lg text-neutral-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -454,35 +490,30 @@ export function RemoteViewfinder({ onDisconnect, onOpenGallery, onPhotoSaved }) 
           )}
         </div>
 
-        {/* Center: BIG CAMERA SHUTTER BUTTON (With desktop keyboard shortcut) */}
+        {/* Center: BIG CAMERA SHUTTER BUTTON (With continuous rapid burst click support) */}
         <div className="flex flex-col items-center gap-1.5">
           <button
             onClick={triggerShutter}
-            disabled={isCapturing}
             aria-label="Take Photo"
-            className={`relative w-20 h-20 sm:w-22 sm:h-22 rounded-full flex items-center justify-center transition-all transform active:scale-90 shadow-2xl ${
-              isCapturing ? 'opacity-60 cursor-not-allowed' : 'hover:scale-105'
-            }`}
+            className="relative w-20 h-20 sm:w-22 sm:h-22 rounded-full flex items-center justify-center transition-all transform active:scale-90 hover:scale-105 shadow-2xl"
           >
             {/* Outer ring */}
             <div className="absolute inset-0 rounded-full border-4 border-white shadow-2xl"></div>
             {/* Inner trigger pad */}
-            <div
-              className="w-16 h-16 sm:w-18 sm:h-18 rounded-full transition-all flex items-center justify-center shadow-inner"
-              style={{
-                backgroundColor: isCapturing ? '#737373' : '#ffffff',
-              }}
-            >
-              {isCapturing ? (
-                <RefreshCw className="w-6 h-6 text-black animate-spin" />
-              ) : (
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-neutral-300"></div>
-              )}
+            <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-white transition-all flex items-center justify-center shadow-inner">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-neutral-300"></div>
             </div>
+
+            {/* Pending capture count badge for rapid continuous burst shooting */}
+            {pendingCaptures > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[22px] h-[22px] px-1.5 rounded-full bg-white text-black font-mono font-bold text-[11px] flex items-center justify-center shadow-lg border border-neutral-800 animate-pulse">
+                +{pendingCaptures}
+              </span>
+            )}
           </button>
           <div className="flex items-center gap-1.5">
             <span className="text-[11px] sm:text-xs font-bold tracking-wider uppercase text-white drop-shadow">
-              {isCapturing ? 'Capturing Sensor Photo...' : 'Take Photo'}
+              {pendingCaptures > 0 ? `Capturing (${pendingCaptures})...` : 'Take Photo'}
             </span>
             <span className="hidden md:inline-block text-[9px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 border border-neutral-700 text-neutral-300">
               Spacebar
@@ -502,9 +533,14 @@ export function RemoteViewfinder({ onDisconnect, onOpenGallery, onPhotoSaved }) 
         </div>
       </div>
 
-      {/* Instant Captured Photo Pop-up Viewer */}
+      {/* Instant Captured Photo Pop-up Viewer (Only if opened explicitly, lowered safely away from phone notch) */}
       {previewModalPhoto && (
-        <div className="fixed inset-0 z-50 bg-black/95 flex flex-col justify-between p-3 sm:p-5 animate-fade-in">
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex flex-col justify-between px-3 pb-4 sm:px-6 sm:pb-6 animate-fade-in"
+          style={{
+            paddingTop: 'max(env(safe-area-inset-top, 0px) + 18px, 32px)',
+          }}
+        >
           <div className="flex items-center justify-between text-white pb-3 border-b border-neutral-800 gap-2">
             <div className="truncate">
               <h4 className="text-sm font-bold flex items-center gap-1.5 truncate">
@@ -518,7 +554,7 @@ export function RemoteViewfinder({ onDisconnect, onOpenGallery, onPhotoSaved }) 
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => downloadBlob(previewModalPhoto.blob, previewModalPhoto.name)}
-                className="px-3 py-1.5 rounded-xl bg-white text-black font-bold text-xs hover:bg-neutral-200 transition-colors"
+                className="px-3.5 py-2 rounded-xl bg-white text-black font-bold text-xs hover:bg-neutral-200 transition-colors shadow active:scale-95"
               >
                 Download
               </button>
@@ -539,7 +575,7 @@ export function RemoteViewfinder({ onDisconnect, onOpenGallery, onPhotoSaved }) 
           </div>
           <div className="pt-3 text-center border-t border-neutral-800">
             <span className="text-xs font-semibold text-neutral-300">
-              Saved directly to Phone A local storage & device downloads
+              Saved directly to Device A local storage & device downloads
             </span>
           </div>
         </div>

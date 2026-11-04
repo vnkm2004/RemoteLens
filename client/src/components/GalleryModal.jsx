@@ -72,7 +72,12 @@ export function GalleryModal({ isOpen, onClose, onCountChange }) {
   const totalStorageMB = (totalStorageBytes / (1024 * 1024)).toFixed(1);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-md"
+      style={{
+        paddingTop: 'max(env(safe-area-inset-top, 0px) + 12px, 24px)',
+      }}
+    >
       <div
         className="w-full max-w-4xl max-h-[92vh] rounded-3xl border flex flex-col shadow-2xl overflow-hidden transition-all"
         style={{
@@ -82,7 +87,7 @@ export function GalleryModal({ isOpen, onClose, onCountChange }) {
       >
         {/* Header */}
         <div
-          className="p-4 sm:p-5 border-b flex items-center justify-between"
+          className="p-3.5 sm:p-5 border-b flex items-center justify-between"
           style={{ borderColor: isDark ? '#262626' : '#e5e5e5' }}
         >
           <div className="flex items-center gap-3">
@@ -209,36 +214,43 @@ export function GalleryModal({ isOpen, onClose, onCountChange }) {
           )}
         </div>
 
-        {/* Full Image Inspector Modal */}
+        {/* Full Image Inspector Modal (Lowered safely below phone notch/camera cutout) */}
         {selectedPhoto && (
-          <div className="fixed inset-0 z-60 bg-black/95 flex flex-col justify-between p-4 animate-fade-in">
+          <div
+            className="fixed inset-0 z-60 bg-black/95 flex flex-col justify-between px-3 pb-4 sm:px-6 sm:pb-6 animate-fade-in"
+            style={{
+              paddingTop: 'max(env(safe-area-inset-top, 0px) + 20px, 34px)',
+            }}
+          >
             {/* Top Toolbar */}
-            <div className="flex items-center justify-between text-white pb-3 border-b border-neutral-800">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold">{selectedPhoto.name}</span>
-                <span className="text-[10px] font-mono text-white px-2 py-0.5 rounded bg-neutral-800 border border-neutral-700">
+            <div className="flex items-center justify-between text-white pb-3 border-b border-neutral-800 gap-2">
+              <div className="truncate flex items-center gap-2">
+                <span className="text-xs font-bold truncate max-w-[120px] sm:max-w-xs">{selectedPhoto.name}</span>
+                <span className="text-[10px] font-mono text-white px-2 py-0.5 rounded bg-neutral-800 border border-neutral-700 shrink-0">
                   {selectedPhoto.width} × {selectedPhoto.height} (
                   {((selectedPhoto.width * selectedPhoto.height) / 1000000).toFixed(1)} MP)
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => handleDownload(selectedPhoto)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-black font-bold text-xs shadow active:scale-95"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white text-black font-bold text-xs shadow active:scale-95 transition-transform"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>Download Original</span>
+                  <span>Download</span>
                 </button>
                 <button
                   onClick={() => handleDelete(selectedPhoto.id)}
-                  className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white hover:bg-neutral-800"
+                  title="Delete Photo"
+                  className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white hover:bg-neutral-800 active:scale-95 transition-transform"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() => setSelectedPhoto(null)}
-                  className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white hover:bg-neutral-800"
+                  title="Close Preview"
+                  className="p-2 rounded-xl bg-neutral-900 border border-neutral-800 text-white hover:bg-neutral-800 active:scale-95 transition-transform"
                 >
                   <X className="w-4 h-4" />
                 </button>

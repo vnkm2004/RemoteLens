@@ -39,3 +39,4 @@ npm --prefix client run build
 npm run android:sync
 cd client/android && ./gradlew assembleDebug
 ```
+

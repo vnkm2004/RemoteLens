@@ -13,8 +13,8 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        if (bridge != null && bridge.getWebView() != null) {
-            bridge.getWebView().setWebViewClient(new BridgeWebViewClient(bridge) {
+        if (bridge != null) {
+            bridge.setWebViewClient(new BridgeWebViewClient(bridge) {
                 @Override
                 public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
                     // Auto-trust self-signed certs for local Wi-Fi and Hotspot camera connections

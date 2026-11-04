@@ -337,6 +337,20 @@ In Android Studio:
   - **Client Vercel Config (`client/vercel.json`)**: Added SPA routing fallback (`/(.*) -> /index.html`) directly inside `client/`.
   - **Cloud PaaS Edge SSL Support (`server/server.js`)**: Detects cloud hosting environments (`RENDER`, `RAILWAY_ENVIRONMENT`, etc.) to terminate SSL at the edge load balancer while maintaining self-signed HTTPS for local Wi-Fi.
 
+### 17. Fix for WebRTC Black Viewfinder & APK Blank Black Screen
+- **Root Cause of APK Blank Black Screen (Image 2)**:
+  1. In `client/capacitor.config.json`, `webDir` was set to `../server/public`. Capacitor 7 did not resolve the relative parent directory and silently fell back to copying from `client/public` (which contained only icons and manifests, missing `index.html` and JavaScript bundle files entirely).
+  2. Fixed `webDir: "dist"` in `capacitor.config.json` and resynced so all production JavaScript bundles, HTML, and CSS are properly copied into `android/app/src/main/assets/public/`.
+  3. In `MainActivity.java`, updated WebViewClient initialization to use `bridge.setWebViewClient(new BridgeWebViewClient(bridge) { ... })`, keeping Capacitor's internal bridge loader in sync while auto-trusting self-signed certificates.
+  4. Successfully recompiled `app-debug.apk` with Gradle `assembleDebug`.
+- **Root Cause of WebRTC Black Viewfinder on Deployed Website (Image 1)**:
+  1. **Race Condition in Initial Offer**: In `useWebRTC.js`, when Phone B initialized WebRTC as `host`, `localStream` was initially `null` because `getUserMedia()` starts asynchronously. An initial SDP offer was sent with 0 video tracks. When `localStream` arrived 500ms later, track renegotiation collided with ongoing ICE signaling.
+  2. **Unified Plan Transceiver**: Added `pc.addTransceiver('video', { direction: 'recvonly' })` on Controller so the browser's WebRTC engine explicitly expects and accepts incoming video tracks.
+  3. **Deferred Initial Offer on Host**: Host now waits until `localStream` has active video tracks before creating the initial offer. The very first offer sent contains the complete video track definition.
+  4. **Active Playback Triggers**: `RemoteViewfinder.jsx` now listens to `onloadedmetadata`, `oncanplay`, and track `onunmute` events to immediately invoke `video.play()`.
+  5. **Expanded STUN Servers**: Added Google and Cloudflare STUN servers (`stun.cloudflare.com:3478`, `stun2.l.google.com:19302`) for resilient NAT traversal across different networks.
+
+
 
 
 

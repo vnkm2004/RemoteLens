@@ -1,7 +1,7 @@
 {
   "appId": "com.remotecamera.sync",
   "appName": "RemoteLens Pro",
-  "webDir": "../server/public",
+  "webDir": "dist",
   "server": {
     "cleartext": true,
     "allowNavigation": ["*"]

@@ -116,19 +116,28 @@ export function RemoteViewfinder({ onDisconnect, onOpenGallery, onPhotoSaved }) 
     },
   });
 
-  // Attach remote stream to video element
+  // Attach remote stream to video element with active playback guarantees
   useEffect(() => {
     const video = videoElementRef.current;
     if (video && remoteStream) {
       video.srcObject = remoteStream;
-      video.onloadedmetadata = () => {
-        video.play().catch((e) => console.log('Remote video play metadata:', e));
+      const attemptPlay = () => {
+        if (video) {
+          video.play().catch((e) => console.log('[RemoteViewfinder] Video play attempt:', e));
+        }
       };
-      video.play().catch((e) => console.log('Remote video play:', e));
+
+      video.onloadedmetadata = attemptPlay;
+      video.oncanplay = attemptPlay;
+      attemptPlay();
+
+      remoteStream.getTracks().forEach((track) => {
+        track.onunmute = attemptPlay;
+      });
 
       remoteStream.onaddtrack = () => {
         console.log('[Controller] Remote track added to stream');
-        video.play().catch((e) => console.log('Remote video play on track:', e));
+        attemptPlay();
       };
     }
   }, [remoteStream]);

@@ -7,6 +7,8 @@ const RTC_CONFIG = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
   ],
   iceCandidatePoolSize: 2,
 };
@@ -111,6 +113,7 @@ export function useWebRTC({
   const targetSocketIdRef = useRef(targetSocketId);
   targetSocketIdRef.current = targetSocketId;
   const processedPhotosRef = useRef(new Set());
+  const initialOfferSentRef = useRef(false);
 
   // Initialize PhotoReceiver for Phone A
   useEffect(() => {
@@ -250,6 +253,7 @@ export function useWebRTC({
     };
 
     // Role setup
+    initialOfferSentRef.current = false;
     if (role === 'host') {
       // Create DataChannel with reliable SCTP delivery
       const dc = pc.createDataChannel('photo-transfer', {
@@ -258,8 +262,10 @@ export function useWebRTC({
       dataChannelRef.current = dc;
       setupDataChannelEvents(dc);
 
-      // Add local tracks if already available upon peer connection initialization
-      if (localStream) {
+      // Only send initial offer immediately if localStream has active video tracks.
+      // Otherwise, wait for localStream to become ready in the localStream effect below
+      // so the offer contains the full video track definition right from the start!
+      if (localStream && localStream.getVideoTracks().length > 0) {
         localStream.getTracks().forEach((track) => {
           try {
             console.log('[WebRTC] Adding local track before initial offer:', track.kind);
@@ -269,27 +275,36 @@ export function useWebRTC({
             console.warn('[WebRTC] Track attach error:', e);
           }
         });
+
+        const createInitialOffer = async () => {
+          try {
+            initialOfferSentRef.current = true;
+            const offer = await pc.createOffer();
+            offer.sdp = boostSdpQuality(offer.sdp);
+            await pc.setLocalDescription(offer);
+            socket.emit('webrtc_offer', {
+              targetSocketId: targetSocketIdRef.current,
+              sdp: offer,
+            });
+            console.log('[WebRTC] Sent initial offer with video stream tracks');
+          } catch (err) {
+            console.error('[WebRTC] Failed to create offer:', err);
+          }
+        };
+
+        createInitialOffer();
+      } else {
+        console.log('[WebRTC] Host peer connection ready. Waiting for camera stream before sending initial offer...');
+      }
+    } else if (role === 'controller') {
+      // In Unified Plan WebRTC, explicitly declare transceiver to receive video stream
+      try {
+        pc.addTransceiver('video', { direction: 'recvonly' });
+        console.log('[WebRTC] Added recvonly video transceiver on controller');
+      } catch (e) {
+        console.warn('[WebRTC] Transceiver setup warning:', e);
       }
 
-      const createInitialOffer = async () => {
-        try {
-          const offer = await pc.createOffer({
-            offerToReceiveVideo: false,
-            offerToReceiveAudio: false,
-          });
-          offer.sdp = boostSdpQuality(offer.sdp);
-          await pc.setLocalDescription(offer);
-          socket.emit('webrtc_offer', {
-            targetSocketId: targetSocketIdRef.current,
-            sdp: offer,
-          });
-        } catch (err) {
-          console.error('[WebRTC] Failed to create offer:', err);
-        }
-      };
-
-      createInitialOffer();
-    } else if (role === 'controller') {
       pc.ondatachannel = (event) => {
         console.log('[WebRTC] DataChannel received by controller');
         dataChannelRef.current = event.channel;
@@ -463,8 +478,35 @@ export function useWebRTC({
       const videoSender = senders.find((s) => s.track && s.track.kind === 'video');
       const newVideoTrack = localStream.getVideoTracks()[0];
 
+      // If initial offer was waiting for local camera stream, attach track and send initial offer now!
+      if (!initialOfferSentRef.current && newVideoTrack) {
+        console.log('[WebRTC] Camera stream is now active. Attaching track and sending initial offer!');
+        initialOfferSentRef.current = true;
+        try {
+          const sender = pcRef.current.addTrack(newVideoTrack, localStream);
+          boostSenderQuality(sender);
+
+          pcRef.current.createOffer()
+            .then(async (offer) => {
+              if (pcRef.current && targetSocketIdRef.current) {
+                offer.sdp = boostSdpQuality(offer.sdp);
+                await pcRef.current.setLocalDescription(offer);
+                socket.emit('webrtc_offer', {
+                  targetSocketId: targetSocketIdRef.current,
+                  sdp: offer,
+                });
+                console.log('[WebRTC] Sent initial offer with active video track');
+              }
+            })
+            .catch((err) => console.error('[WebRTC] Error creating initial offer with stream:', err));
+        } catch (e) {
+          console.warn('[WebRTC] addTrack on initial stream error:', e);
+        }
+        return;
+      }
+
       if (videoSender && newVideoTrack) {
-        console.log('[WebRTC] Replacing video track with new stream track');
+        console.log('[WebRTC] Replacing video track with new stream track (instant lens switch)');
         videoSender.replaceTrack(newVideoTrack)
           .then(() => boostSenderQuality(videoSender))
           .catch(e => console.warn('replaceTrack:', e));
@@ -474,7 +516,7 @@ export function useWebRTC({
           const sender = pcRef.current.addTrack(newVideoTrack, localStream);
           boostSenderQuality(sender);
 
-          pcRef.current.createOffer({ offerToReceiveVideo: false, offerToReceiveAudio: false })
+          pcRef.current.createOffer()
             .then(async (offer) => {
               if (pcRef.current && targetSocketIdRef.current) {
                 offer.sdp = boostSdpQuality(offer.sdp);
